@@ -6,12 +6,11 @@ rm(list=ls())
 gc()
 memory.limit(64000)
 
-setwd("F:/HelsinkiData23102019/euglossini")
+setwd("F:/HelsinkiData23102019/euglossini/baitmod")
 
 library(devtools)
 library(withr)
-#with_libpaths(new="C:/Program Files/R/R-3.5.0/library",
-#              install_github("hmsc-r/HMSC", build_opts = c("--no-resave-data", "--no-manual")))
+#install_github("hmsc-r/HMSC", build_opts = c("--no-resave-data", "--no-manual"))
 library(Hmsc)
 library(corrplot)
 library(reshape2)
@@ -19,12 +18,12 @@ library(reshape2)
 #### Model fitting
 
 # Load datafiles
-Y = read.csv(file="baitmod/data/Y.csv")
-XData = read.csv(file="baitmod/data/XData.csv")
-TrData = read.csv(file="baitmod/data/TrData.csv")
+Y = read.csv(file="data/Y.csv")
+XData = read.csv(file="data/XData.csv")
+TrData = read.csv(file="data/TrData.csv")
 rownames(TrData) = TrData$X
 TrData = TrData[,-1]
-dfPi = read.csv(file="baitmod/data/dfPi.csv")
+dfPi = read.csv(file="data/dfPi.csv")
 
 XData$Ska = as.factor(XData$Ska)
 XData$Cin = as.factor(XData$Cin)
@@ -47,7 +46,7 @@ XFormula = ~ method + effort + Cin + Eug + MS + MC + BA + VA + Ska
 TrFormula = ~ Cin + Eug + MS + MC + BA + VA + Ska
 
 #Sample MCMC
-thin = 100
+thin = 200
 samples = 1000
 transient = .5*(thin*samples)
 adaptNf = .4*(thin*samples)
@@ -71,10 +70,10 @@ m = sampleMcmc(m, samples = samples, thin = thin,
              nChains = nChains, nParallel = 1, updater=list(GammaEta=FALSE))
 Sys.time()-a
 
-save(m, file="baitmod/mBaits_Probit_100K_2chains_Oct.Rdata")
+save(m, file="mBaits_Probit_200K_2chains_Nov.Rdata")
 
 #### Load the model object ####
-load(file="baitmod/mBaits_Probit_100K_2chains_Oct.Rdata")
+load(file="mBaits_Probit_200K_2chains_Nov.Rdata")
 
 # Assess sampling performance
 mpost = convertToCodaObject(m)
@@ -92,11 +91,11 @@ psrfGamma = gelman.diag(mpost$Gamma, multivariate=F)$psrf
 summary(psrfGamma)
 
 # Produce posterior trace plots
-pdf("baitmod/posterior_plots/betaPost.pdf")
+pdf("posterior_plots/betaPost.pdf")
 plot(mpost$Beta[,1:200])
 dev.off()
 
-pdf("baitmod/posterior_plots/gammaPost.pdf")
+pdf("posterior_plots/gammaPost.pdf")
 plot(mpost$Gamma)
 dev.off()
 
@@ -125,13 +124,11 @@ cbind(m$covNames, group)
 groupnames = c("Baiting method","Effort","Baits")
 
 VP = computeVariancePartitioning(hM=m, group=group, groupnames=groupnames)
-str(VP)
 
 VP$R2T$Y #Variance in predicted occurrences explained by traits
 VP$R2T$Beta #Variance in response to covariates explained by traits
 mean(VP$R2T$Beta[6:12])
 
-par(mfrow=c(1,1),mar=c(4,4,2,2))
 VP$vals=VP$vals[,rev(order(colSums(VP$vals[1:3,])))]
 plotVariancePartitioning(hM=m, VP = VP)
 
@@ -150,9 +147,10 @@ dev.off()
 
 # Gamma parameters
 pgamma = getPostEstimate(m, "Gamma")
-#plotGamma(m, post=pgamma, supportLevel=.75, param = "Mean",
-#          trOrder="Vector", trVector=c(2:8),
-#          covOrder="Vector", covVector=c(6:12), covNamesNumbers = c(T,T))
+
+plotGamma(m, post=pgamma, supportLevel=.75, param = "Mean",
+          trOrder="Vector", trVector=c(2:8),
+          covOrder="Vector", covVector=c(6:12), covNamesNumbers = c(T,T))
 
 m$covNames
 m$trNames
@@ -163,25 +161,24 @@ supportLevel = .75
 mat = mat * ((supp > supportLevel) + (supp < (1 - supportLevel)) > 0)
 
 colnames(m$Tr)
-names=c("Cineole","Eugenol","Methyl salicylate", "Methyl cinnamate","Benzyl acetate","Vanillin", "Skatole")
+names=c("Cineole", "Eugenol", "Methyl salicylate", "Methyl cinnamate", "Benzyl acetate", "Vanillin", "Skatole")
 colnames(mat) = rownames(mat) = names
 
-x11()
-#pdf("baitmod/BaitPrefFig.pdf", height=5.5, width=11, family="Times")
+pdf("BaitPrefFig.pdf", height=5.5, width=11, family="Times")
 par(mfrow=c(1,2), mar=c(5,7,3,0), xpd=F)
-md=melt(pbeta$mean[6:12,])
+md = melt(pbeta$mean[6:12,])
 plot(as.factor(md$Var1), md$value, xlab="", xaxt="n", ylab="Species response (probit scale)", las=1)
 abline(h=0, lty=2, lwd=2)
 
 axis(1, at=1:7, labels=rep("", 7))
 text(x = seq(1,7, length.out = 7), par("usr")[3] - 
-       +.3, srt = 45, adj = 1, cex = .8, labels = names, xpd = TRUE)
+       +.5, srt = 45, adj = 1, cex = .8, labels = names, xpd = TRUE)
 mtext("(a) Bait effects on species occurrence", 3, line=.5)
 
 par(xpd=T)
 corrplot(t(mat), is.cor=F,method="color", col=colorRampPalette(c("blue3", "white", "red3"))(200),
          mar=c(5,7,0,2), tl.cex=.6, tl.col="black", tl.pos="n",
-         cl.align.text="r", cl.offset=0, cl.cex=.8, cl.length=7, cl.lim=c(-4.5,4.5), addgrid.col = "grey")
+         cl.align.text="r", cl.offset=0, cl.cex=.8, cl.length=11, cl.lim=c(-5,5), addgrid.col = "grey")
 text(x = seq(1,7, length.out = 7), par("usr")[3] - 
        -1.5, srt = 45, adj = 1, cex = .8, labels = names, xpd = TRUE)
 text(y = seq(1,7, length.out = 7), par("usr")[3] - 
@@ -194,23 +191,24 @@ dev.off()
 
 #### Gradient plots ####
 m$covNames
-type=3
-value=1
+type = 3
+value = 1
 
-Gradient=constructGradient(m, focalVariable = "MS",
-                           non.focalVariables = list(
-                             method=list(3, "Net"),
-                             effort=list(1),
-                             Ska=list(type, value),
-                             Cin=list(type, value),
-                             Eug=list(type, value),
-                             MS=list(type, value),
-                             MC=list(type, value),
-                             BA=list(type, value),
-                             VA=list(type, value)))
+Gradient = constructGradient(m, focalVariable = "MS",
+                              non.focalVariables = list(
+                              method=list(3, "Net"),
+                              effort=list(1),
+                              Ska=list(type, value),
+                              Cin=list(type, value),
+                              Eug=list(type, value),
+                              MS=list(type, value),
+                              MC=list(type, value),
+                              BA=list(type, value),
+                              VA=list(type, value)))
 
-head(Gradient$XDataNew,20)
-predY=predict(m, Gradient=Gradient,expected=TRUE, predictEtaMean=FALSE)
+head(Gradient$XDataNew)
+
+predY = predict(m, Gradient=Gradient, expected=TRUE, predictEtaMean=FALSE)
 
 #Species richness
 plotGradient(m, Gradient, predY, measure="S")
@@ -218,4 +216,3 @@ plotGradient(m, Gradient, predY, measure="S")
 #Community-weighed mean trait value
 m$trNames
 plotGradient(m, Gradient, predY, measure = "T", index = 4)
-

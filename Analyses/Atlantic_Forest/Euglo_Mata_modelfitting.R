@@ -6,11 +6,12 @@
 
 rm(list=ls())
 gc()
+memory.limit(64000)
 
 #### Load packages ####
 library(devtools)
 library(withr)
-#install_github("hmsc-r/HMSC")
+#install_github("hmsc-r/HMSC", build_opts = c("--no-resave-data", "--no-manual"))
 library(abind)
 library(reshape2)
 library(maptools)
@@ -33,23 +34,23 @@ rownames(xy)=xy$X
 xy=xy[,-1]
 
 # Species synonyms
-eco=which(colnames(Y)=="Euglossa_cordata")
+eco = which(colnames(Y)=="Euglossa_cordata")
 Y$Euglossa_carolina = Y$Euglossa_carolina + Y$Euglossa_cordata
-Y=Y[,-eco]
-TrData=TrData[-eco,]
+Y = Y[,-eco]
+TrData = TrData[-eco,]
 
-eci=which(colnames(Y)=="Eulaema_cingulata")
+eci = which(colnames(Y)=="Eulaema_cingulata")
 Y$Eulaema_marcii = Y$Eulaema_marcii + Y$Eulaema_cingulata
-Y=Y[,-eci]
-TrData=TrData[-eci]
+Y = Y[,-eci]
+TrData = TrData[-eci]
 
-eto=which(colnames(Y)=="Euglossa_townsendi")
+eto = which(colnames(Y)=="Euglossa_townsendi")
 Y$Euglossa_aratingae = Y$Euglossa_aratingae + Y$Euglossa_townsendi
-Y=Y[,-eto]
-TrData=TrData[-eto]
+Y = Y[,-eto]
+TrData = TrData[-eto]
 
-TrData=as.data.frame(TrData)
-names(TrData)="genus"
+TrData = as.data.frame(TrData)
+names(TrData) = "genus"
 
 dim(Y)
 dim(TrData)
@@ -77,7 +78,7 @@ XFormula = ~ method + effort + poly(altitude, 2, raw=TRUE) + MAT + MAP + Tseason
 TrFormula= ~genus-1
 
 #Setup HMSC models
-m1 = Hmsc(Y = as.matrix((Y>1)*1), 
+m1 = Hmsc(Y = as.matrix((Y>0)*1), 
           XData = XData,  XFormula = XFormula,
           TrData = TrData, TrFormula = TrFormula,
           distr = "probit", 
@@ -113,16 +114,16 @@ a=Sys.time()
 m1 = sampleMcmc(m1, samples = samples, thin = thin,
                 adaptNf = rep(adaptNf, 2),
                 transient = transient,
-                nChains = nChains, nParallel = 2, updater=list())
+                nChains = nChains, nParallel = 1, updater=list(GammaEta=FALSE))
 Sys.time()-a
 
-#save(m1,file="mMataPA_150K_2chains_Sep.Rdata")
+save(m1,file="mMataPA_150K_2chains_Nov.Rdata")
 
 a=Sys.time()
 m2 = sampleMcmc(m2, samples = samples, thin = thin,
                 adaptNf = rep(adaptNf, 2),
                 transient = transient,
-                nChains = nChains, nParallel = 2, updater=list())
+                nChains = nChains, nParallel = 2, updater=list(GammaEta=FALSE))
 Sys.time()-a
 
 #save(m2,file="mMataCond_150K_2chains_Sep.Rdata")
@@ -130,7 +131,7 @@ Sys.time()-a
 #### POSTPROCESSING ####
 
 #### Presence-absence model ####
-load("mMataPA_150K_2chains_Sep.Rdata")
+load("mMataPA_150K_2chains_Nov.Rdata")
 m = m1
 
 # Assess sampling performance
@@ -142,9 +143,6 @@ summary(esBeta)
 psrf = gelman.diag(mpost$Beta, multivariate=FALSE)$psrf
 summary(psrf)
 
-esLambda = effectiveSize(mpost$Lambda[[1]])
-summary(esLambda)
-
 # Plot posterior trace
 pdf("PAmod/alphaPost.pdf")
 plot(mpost$Alpha[[1]])
@@ -152,10 +150,6 @@ dev.off()
 
 pdf("PAmod/betaPost.pdf")
 plot(mpost$Beta[,1:200])
-dev.off()
-
-pdf("PAmod/lambdaPost.pdf")
-plot(mpost$Lambda[[1]])
 dev.off()
 
 # Explanatory power
@@ -168,7 +162,7 @@ mean(MF$AUC, na.rm=T)
 range(MF$TjurR2)
 range(MF$AUC)
 
-predYm=apply(predY,1:2,mean)
+predYm = apply(predY, 1:2, mean)
 
 plot(colSums(predYm,na.rm=T), colSums(m$Y))
 lines(-1000:1000, -1000:1000)
@@ -203,14 +197,13 @@ cbind(m$covNames, group)
 
 groupnames = c("Baiting method", "Effort", "Altitude", "Climate", "Forest cover", "Landuse heterogeneity")
 VP = computeVariancePartitioning(hM = m, group = group, groupnames = groupnames)
-str(VP)
 VP$R2T #Genus effects
 
 VP$vals = VP$vals[,rev(order(colSums(VP$vals[1:6,])))]
 
 pdf("PAmod/VarPartMata.pdf", height=3, width=7, family="Times")
 par(mar=c(2,4,2,12))
-plotVP2(m, VP, col=topo.colors(8),axisnames=F,args.legend=list(y=1.0, x=112, horiz=F,cex=0.75, bty="n"))
+plotVP2(m, VP, col=topo.colors(8), axisnames=F, args.legend=list(y=1.0, x=112, horiz=F, cex=0.75, bty="n"))
 dev.off()
 
 # Beta parameters
@@ -254,7 +247,7 @@ cols = topo.colors(4, alpha=.5)
 predS = lapply(predY, function(x) rowSums(x))
 pred = apply(abind(predS, along = 2), c(1), quantile, 
              prob = c(.025, .5, .975), na.rm = TRUE)
-plot(m$XData$forest., rowSums(m$Y), pch=16, lwd = 2, ylim=c(0, 25), col="grey", las=1,
+plot(m$XData$forest., rowSums(m$Y), pch=16, lwd = 2, ylim=c(0, 30), col="grey", las=1,
      ylab="", xlab="")
 mtext("Proportion forest cover", 1, line=2.5)
 mtext("Species richness", 2, line=2.5, xpd=T)
@@ -263,13 +256,13 @@ lines(xx, pred[2, ], lwd=2)
 polygon(c(xx, rev(xx)), c(pred[1, ], rev(pred[3, ])), 
         col = cols[3], border = FALSE)
 
-text(x=0, y=25, adj=c(3.7), labels="(a)", xpd=T, cex=1.3)
+text(x=0, y=30, adj=c(3.7), labels="(a)", xpd=T, cex=1.3)
 
 # Per genus
 predS = lapply(predY, function(x) rowSums(x[,which(m$TrData$genus=="Euglo")]))
 egpred = apply(abind(predS, along = 2), c(1), quantile, 
                prob = c(.025, .5, .975), na.rm = TRUE)
-plot(xx, egpred[2, ], type="l",lwd = 2, ylim=c(0, 15), las=1,
+plot(xx, egpred[2, ], type="l",lwd = 2, ylim=c(0, 20), las=1,
      ylab="", xlab="")
 mtext("Proportion forest cover", 1, line=2.5)
 polygon(c(xx, rev(xx)), c(egpred[1, ], rev(egpred[3, ])), 
@@ -301,7 +294,7 @@ legendcols = topo.colors(4, alpha=0.75)
 legend("topleft", c(expression(italic(Euglossa)), expression(italic(Eulaema)), expression(italic(Eufriesea)), expression(italic(Exaerete))),bty="n", cex=1.2 ,col=legendcols,lwd=2,lty=1)
 mtext("Species richness", 2, line=2.5, xpd=T)
 
-text(x=0, y=15, adj=c(3.7), labels="(b)", xpd=T, cex=1.3)
+text(x=0, y=20, adj=c(3.7), labels="(b)", xpd=T, cex=1.3)
 
 #Per species
 cols = rev(divPalette(90, "Spectral"))[c(1:29, 62:90)]
@@ -337,14 +330,12 @@ mpost = convertToCodaObject(m)
 
 esBeta = effectiveSize(mpost$Beta)
 summary(esBeta)
+
 psrf = gelman.diag(mpost$Beta, multivariate=FALSE)$psrf
 summary(psrf)
 
 esAlpha = effectiveSize(mpost$Alpha[[1]])
 summary(esAlpha)
-
-esLambda = effectiveSize(mpost$Lambda[[1]])
-summary(esLambda)
 
 #Plot posterior trace
 pdf("Amod/alphaPost.pdf")
@@ -353,10 +344,6 @@ dev.off()
 
 pdf("Amod/betaPost.pdf")
 plot(mpost$Beta[,1:200])
-dev.off()
-
-pdf("Amod/lambdaPost.pdf")
-plot(mpost$Lambda[[1]])
 dev.off()
 
 #Explanatory power
@@ -391,7 +378,7 @@ cbind(m$covNames, group)
 
 groupnames = c("Baiting method", "Effort", "Altitude", "Climate", "Forest cover", "Landuse heterogeneity")
 VP = computeVariancePartitioning(hM = m, group = group, groupnames = groupnames)
-str(VP)
+
 VP$R2T #Genus effects
 
 VP$vals = VP$vals[,rev(order(colSums(VP$vals[1:6,])))]
@@ -414,16 +401,16 @@ plotBeta(m, post = pbeta, param = "Support", covOrder = "Vector", covVector=c(2:
 
 x=2
 m$covNames
-Gradient=constructGradient(m, focalVariable = "forest.", ngrid=50,
-                           non.focalVariables = list(
-                             method=list(1),
-                             effort=list(1),
-                             altitude=list(x),
-                             MAT=list(x),
-                             MAP=list(x),
-                             Tseason=list(x),
-                             Pseason=list(x),
-                             lu_het=list(x)))
+Gradient = constructGradient(m, focalVariable = "forest.", ngrid=50,
+                              non.focalVariables = list(
+                              method=list(1),
+                              effort=list(1),
+                              altitude=list(x),
+                              MAT=list(x),
+                              MAP=list(x),
+                              Tseason=list(x),
+                              Pseason=list(x),
+                              lu_het=list(x)))
 head(Gradient$XDataNew, 50)
 
 predY = predict(m, Gradient = Gradient, expected=TRUE, predictEtaMean=FALSE)

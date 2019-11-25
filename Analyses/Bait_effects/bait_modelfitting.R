@@ -6,7 +6,7 @@ rm(list=ls())
 gc()
 memory.limit(64000)
 
-setwd("F:/HelsinkiData23102019/euglossini/baitmod")
+setwd("G:/HelsinkiData23102019/euglossini/baitmod")
 
 library(devtools)
 library(withr)
@@ -163,6 +163,18 @@ mat = mat * ((supp > supportLevel) + (supp < (1 - supportLevel)) > 0)
 colnames(m$Tr)
 names=c("Cineole", "Eugenol", "Methyl salicylate", "Methyl cinnamate", "Benzyl acetate", "Vanillin", "Skatole")
 colnames(mat) = rownames(mat) = names
+
+pdf("BaitPrefFigRed.pdf", height=4, width=4, family="Times")
+par(mfrow=c(1,1), mar=c(5,4,1,1), xpd=F)
+md = melt(pbeta$mean[6:12,])
+plot(as.factor(md$Var1), md$value, xlab="", xaxt="n", ylab="", las=1, col=topo.colors(7)[2])
+mtext("Species response (probit scale)", 2, line=2.5)
+abline(h=0, lty=2, lwd=2)
+
+axis(1, at=1:7, labels=rep("", 7))
+text(x = seq(1,7, length.out = 7), par("usr")[3] - 
+       +1, srt = 45, adj = 1, cex = .8, labels = names, xpd = TRUE)
+dev.off()
 
 pdf("BaitPrefFig.pdf", height=5.5, width=11, family="Times")
 par(mfrow=c(1,2), mar=c(5,7,3,0), xpd=F)

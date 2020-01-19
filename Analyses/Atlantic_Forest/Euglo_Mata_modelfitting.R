@@ -33,7 +33,7 @@ xy = read.csv(file="data/xy.csv")
 rownames(xy)=xy$X
 xy=xy[,-1]
 
-# Species synonyms
+# Pooling some species
 eco = which(colnames(Y)=="Euglossa_cordata")
 Y$Euglossa_carolina = Y$Euglossa_carolina + Y$Euglossa_cordata
 Y = Y[,-eco]
